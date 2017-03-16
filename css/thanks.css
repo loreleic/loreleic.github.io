@@ -40,25 +40,3 @@ a {
 img {
   max-width: 100%;
 }
-
-/*--------------------------------------------------
-	Responsive design
----------------------------------------------------*/
-@media screen and (max-width: 787px) {
-  .graphic {
-    padding-top: 25%;
-}
-    img {
-      max-width: 90%;
-    }
-}
-
-@media screen and (max-width: 480px) {
-  .graphic {
-    padding-top: 40%;}
-
-    img {
-      max-width: 80%;
-    }
-
-}
