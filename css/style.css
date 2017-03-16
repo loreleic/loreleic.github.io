@@ -1085,6 +1085,12 @@ margin-left: -35px;
 
 }
 
+.loader-logo {
+	position: absolute;
+  top: 28%;
+  left: 38.5%;
+}
+
 @media screen and (max-width: 62.75em) {
 	.cbp-ig-grid li {
 		width: 50%;
