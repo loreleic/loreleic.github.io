@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css?family=Libre+Baskerville|Montserrat');
+@import url('https://fonts.googleapis.com/css?family=Montserrat');
 
 .thx-btn {
     color: #fff;
@@ -34,7 +34,6 @@ a {
   color: #fff;
   text-decoration: none;
   cursor: auto;
-  font-family: 'Lato', sans-serif;
 }
 
 img {
