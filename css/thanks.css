@@ -1,0 +1,42 @@
+@import url('https://fonts.googleapis.com/css?family=Libre+Baskerville|Montserrat');
+
+.thx-btn {
+    color: #fff;
+    background-color: #6c73a2;
+    box-shadow: 0 0 0.2em 0.2em rgba(94,96,186,.3);
+    display:block;
+    padding: 1em 3em;
+    font-size: 1em;
+    width: 8rem;
+    text-align:center;
+    margin: 0 auto;
+}
+
+.thx-btn:active, .thx-btn:focus, .thx-btn:hover {
+    color: #fff;
+    background-color: #8283c9;
+}
+
+h1 {
+  font-family: 'Montserrat', sans-serif;
+  text-align:center;
+  margin: 60px;
+}
+
+.graphic {
+  padding-top: 10%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+a {
+  color: #fff;
+  text-decoration: none;
+  cursor: auto;
+  font-family: 'Lato', sans-serif;
+}
+
+img {
+  max-width: 100%;
+}
