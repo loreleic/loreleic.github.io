@@ -66,13 +66,8 @@
         t.wrapInner(t.blocks, 'cbp-item-wrapper');
 
         // register and initialize plugins
-        t.plugins = {};
-        $.each(CubePortfolio.plugins, function(key, value) {
-            var fn = value(t);
-
-            if (fn) {
-                t.plugins[key] = fn;
-            }
+        t.plugins = $.map(CubePortfolio.plugins, function(pluginName) {
+            return pluginName(t);
         });
 
         // used by the filters plugin. @todo - remove from here and create proper API with position for plugins
@@ -181,7 +176,7 @@
                                 t.removeAttrImage(el);
                             });
 
-                            if (el.srcset) {
+                            if(el.srcset){
                                 img.attr('sizes', el.sizes || '100vw');
                                 img.attr('srcset', el.srcset);
                             } else {
@@ -216,7 +211,7 @@
                     });
 
                     // ie8 compatibility
-                    if (el.srcset) {
+                    if(el.srcset){
                         img.attr('sizes', el.sizes);
                         img.attr('srcset', el.srcset);
                     } else {
@@ -237,7 +232,7 @@
 
             var img = $('<img>');
 
-            if (srcset) {
+            if(srcset){
                 img.attr('sizes', el.sizes || '100vw');
                 img.attr('srcset', srcset);
             } else {
@@ -509,8 +504,10 @@
             var imgs = [];
 
             t.blocks.each(function(index, el) {
-                $.each($(el).find('img').filter('[width][height]'), function(index, el) {
-                    var width = $(el).parent().width();
+                var block = $(el),
+                    width = block.data('cbp').width;
+
+                $.each(block.find('img').filter('[width][height]'), function(index, el) {
                     var imgWidth = parseInt(el.getAttribute('width'), 10);
                     var imgHeight = parseInt(el.getAttribute('height'), 10);
                     var ratio = parseFloat((imgWidth / imgHeight).toFixed(10));
@@ -524,10 +521,10 @@
             });
 
             $.each(imgs, function(index, item) {
-                item.el.width = item.width;
-                item.el.height = item.height;
-                item.el.style.width = item.width + 'px';
-                item.el.style.height = item.height + 'px';
+                 item.el.width = item.width;
+                 item.el.height = item.height;
+                 item.el.style.width = item.width + 'px';
+                 item.el.style.height = item.height + 'px';
             });
 
             t.blocks.each(function(index, el) {
@@ -854,7 +851,7 @@
             t.$obj.trigger('onAfterLoadMore.cbp', [items]);
         },
 
-        removeItems: function(items, callback) {
+        removeItems: function (items, callback) {
             var t = this;
 
             t.$obj.addClass('cbp-updateItems');
@@ -1433,6 +1430,19 @@ jQuery.fn.cubeportfolio.options = {
      */
     filters: '',
 
+    /**
+     *  Define the wrapper for loadMore
+     *  Values: strings that represent the elements in the document (DOM selector).
+     */
+    loadMore: '',
+
+    /**
+     *  How the loadMore functionality should behave. Load on click on the button or
+     *  automatically when you scroll the page
+     *  Values: - click
+     *          - auto
+     */
+    loadMoreAction: 'click',
 
     /**
      *  Define the search input element
@@ -1952,9 +1962,7 @@ jQuery.fn.cubeportfolio.options = {
                 }
             });
 
-            if (t.destroySlider) {
-                t.destroySlider();
-            }
+            t.destroySlider();
 
             // remove .cbp-wrapper-outer
             t.$ul.unwrap();
@@ -1968,9 +1976,9 @@ jQuery.fn.cubeportfolio.options = {
                 t.$ul.remove();
             }
 
-            $.each(t.plugins, function(key, value) {
-                if (typeof value.destroy === 'function') {
-                    value.destroy();
+            $.each(t.plugins, function(i, item) {
+                if (typeof item.destroy === 'function') {
+                    item.destroy();
                 }
             });
 
@@ -2018,8 +2026,6 @@ jQuery.fn.cubeportfolio.options = {
                 t.defaultFilter = param;
                 expression = t.filterConcat(t.defaultFilter);
             }
-
-            t.triggerEvent('filterStart', expression);
 
             if (t.singlePageInline && t.singlePageInline.isOpen) {
                 t.singlePageInline.close('promise', {
@@ -3111,6 +3117,7 @@ if (typeof Object.create !== 'function') {
     };
 
     CubePortfolio.plugins.captionExpand = function(parent) {
+
         if (parent.options.caption !== 'expand') {
             return null;
         }
@@ -3678,303 +3685,223 @@ if (typeof Object.create !== 'function') {
 (function($, window, document, undefined) {
     'use strict';
 
-    var options = {
-        /**
-         *  Define the wrapper for loadMore
-         *  Values: strings that represent the elements in the document (DOM selector).
-         */
-        selector: '',
-
-        /**
-         *  How the loadMore functionality should behave. Load on click on the button or
-         *  automatically when you scroll the page
-         *  Values: - click
-         *          - auto
-         */
-        action: 'click',
-        /**
-         * How many items to load when you click on the loadMore button
-         * Values: positive integer
-         */
-        loadItems: 3,
-    };
-
     var CubePortfolio = $.fn.cubeportfolio.constructor;
+
+    // add scroll event to page for loadMore
+    CubePortfolio.private.loadMoreScroll = new CubePortfolio.private.publicEvents('scroll.loadMore', 100);
 
     function Plugin(parent) {
         var t = this;
 
         t.parent = parent;
 
-        t.options = $.extend({}, options, t.parent.options.plugins.loadMore);
-
-        t.loadMore = $(t.options.selector).find('.cbp-l-loadMore-link');
+        t.loadMore = $(parent.options.loadMore).find('.cbp-l-loadMore-link');
 
         // load click or auto action
-        if (t.loadMore.length === 0) {
-            return;
+        if (t.loadMore.length) {
+            t[parent.options.loadMoreAction]();
         }
-
-        t.loadItems = t.loadMore.find('.cbp-l-loadMore-loadItems');
-
-        if (t.loadItems.text() === '0') {
-            t.loadMore.addClass('cbp-l-loadMore-stop');
-        }
-
-        parent.registerEvent('filterStart', function(filter) {
-            t.populateItems().then(function() {
-                var itemsLen = t.items.filter(filter).length;
-
-                if (itemsLen > 0) {
-                    t.loadMore.removeClass('cbp-l-loadMore-stop');
-                    t.loadItems.html(itemsLen);
-                } else {
-                    t.loadMore.addClass('cbp-l-loadMore-stop');
-                }
-            });
-        });
-
-        t[t.options.action]();
     }
 
-    Plugin.prototype.populateItems = function() {
-        var t = this;
-
-        if (t.items) {
-            return $.Deferred().resolve();
-        }
-
-        t.items = $();
-
-        // perform ajax request
-        return $.ajax({
-            url: t.loadMore.attr('href'),
-            type: 'GET',
-            dataType: 'HTML'
-        }).done(function(result) {
-            var resultFlat = $.map(result.split(/\r?\n/), function(item, index) {
-                return $.trim(item);
-            }).join('');
-
-            if (resultFlat.length === 0) {
-                return;
-            }
-
-            $.each($.parseHTML(resultFlat), function(index, el) {
-                if ($(el).hasClass('cbp-item')) {
-                    t.items = t.items.add(el);
-                } else {
-                    $.each(el.children, function(index, el2) {
-                        if ($(el2).hasClass('cbp-item')) {
-                            t.items = t.items.add(el2);
-                        }
-                    });
-                }
-            });
-        }).fail(function() {
-            t.items = null;
-            t.loadMore.removeClass('cbp-l-loadMore-loading');
-        });
+    Plugin.prototype.createURL = function(url, clicks) {
+        return url + (/\?/.test(url) ? '&' : '?') + 'block=' + clicks;
     };
 
-    Plugin.prototype.populateInsertItems = function(callback) {
-        var t = this;
-        var insertItems = [];
-        var filter = t.parent.defaultFilter;
-
-        var foundItem = 0;
-        t.items.each(function(index, el) {
-            if (foundItem === t.options.loadItems) {
-                return false;
-            }
-
-            if (!filter || (filter === '*')) {
-                insertItems.push(el);
-                t.items[index] = null;
-
-                foundItem++;
-            } else {
-                if ($(el).filter(filter).length) {
-                    insertItems.push(el);
-                    t.items[index] = null;
-
-                    foundItem++;
-                }
-            }
-        });
-
-        t.items = t.items.map(function(index, el) {
-            return el;
-        });
-
-        // stop the loadMore
-        if (insertItems.length === 0) {
-            t.loadMore.removeClass('cbp-l-loadMore-loading').addClass('cbp-l-loadMore-stop');
-            return;
-        }
-
-        t.parent.$obj.cubeportfolio('append', insertItems, callback);
-    }
-
     Plugin.prototype.click = function() {
-        var t = this;
+        var t = this,
+            numberOfClicks = 0;
 
         t.loadMore.on('click.cbp', function(e) {
+            var button = $(this);
+
             e.preventDefault();
 
-            if (t.parent.isAnimating || t.loadMore.hasClass('cbp-l-loadMore-stop')) {
+            if (t.parent.isAnimating || button.hasClass('cbp-l-loadMore-stop')) {
                 return;
             }
 
             // set loading status
-            t.loadMore.addClass('cbp-l-loadMore-loading');
+            button.addClass('cbp-l-loadMore-loading');
 
-            t.populateItems().then(function() {
-                t.populateInsertItems(appendCallback);
+            numberOfClicks++;
+
+            // perform ajax request
+            $.ajax({
+                url: t.createURL(t.loadMore.attr('href'), numberOfClicks),
+                type: 'GET',
+                dataType: 'HTML'
+            }).done(function(result) {
+                var items = result.replace(/(\r\n|\n|\r)/gm, '');
+
+                var startBlock = items.indexOf('cbp-loadMore-block' + numberOfClicks);
+
+                // stop the loadMore because the block doesn't exist
+                if (startBlock === -1) {
+                    button.addClass('cbp-l-loadMore-stop');
+                    return;
+                }
+
+                // set start from where I will substring
+                var start = items.indexOf('>', startBlock) + 1;
+
+                var endBlock = items.indexOf('cbp-loadMore-block' + (numberOfClicks + 1));
+
+                // if endBlock doesn't exist
+                var end = (endBlock === -1)? items.lastIndexOf('</') : items.lastIndexOf('</', endBlock);
+
+                t.parent.$obj.cubeportfolio('append', items.substring(start, end), function() {
+                    // remove class from button
+                    button.removeClass('cbp-l-loadMore-loading');
+
+                    // check if we have more works
+                    if (endBlock === -1) {
+                        button.addClass('cbp-l-loadMore-stop');
+                    }
+                });
+
+            }).fail(function() {
+                // error
             });
+
         });
-
-        function appendCallback() {
-            // remove class from t.loadMore
-            t.loadMore.removeClass('cbp-l-loadMore-loading');
-
-            var filter = t.parent.defaultFilter;
-            var itemsInLoadMore;
-
-            if (!filter || (filter === '*')) {
-                itemsInLoadMore = t.items.length;
-            } else {
-                itemsInLoadMore = t.items.filter(filter).length;
-            }
-
-            // check if we have more loadMore
-            if (itemsInLoadMore === 0) {
-                t.loadMore.addClass('cbp-l-loadMore-stop');
-            } else {
-                t.loadItems.html(itemsInLoadMore);
-            }
-        }
     };
+
 
     Plugin.prototype.auto = function() {
         var t = this;
         var $window = $(window);
-        var isActive = false;
 
-        // add scroll event to page for loadMore
-        CubePortfolio.private.loadMoreScroll = new CubePortfolio.private.publicEvents('scroll.loadMore', 100);
+        t.parent.$obj.on('initComplete.cbp', function() {
+            Object.create({
+                init: function() {
+                    var self = this;
 
-        t.parent.$obj.one('initComplete.cbp', function() {
-            // add events for scroll
-            t.loadMore
-                .addClass('cbp-l-loadMore-loading')
-                .on('click.cbp', function(e) {
-                    e.preventDefault();
-                });
+                    // the job inactive
+                    self.isActive = false;
 
-            CubePortfolio.private.loadMoreScroll.initEvent({
-                instance: t,
-                fn: function() {
-                    if (!t.parent.isAnimating) {
-                        // get new items on scroll
-                        getNewItems();
+                    self.numberOfClicks = 0;
+
+                    // set loading status
+                    t.loadMore.addClass('cbp-l-loadMore-loading');
+
+                    // add events for scroll
+                    self.addEvents();
+
+                    // trigger method on init
+                    self.getNewItems();
+                },
+
+                addEvents: function() {
+                    var self = this;
+
+                    t.loadMore.on('click.cbp', function(e) {
+                        e.preventDefault();
+                    });
+
+                    CubePortfolio.private.loadMoreScroll.initEvent({
+                        instance: self,
+                        fn: function() {
+                            if (!t.parent.isAnimating) {
+                                // get new items on scroll
+                                self.getNewItems();
+                            }
+                        }
+                    });
+
+                    // when the filter is completed
+                    t.parent.$obj.on('filterComplete.cbp', function() {
+                        self.getNewItems();
+                    });
+                },
+
+                getNewItems: function() {
+                    var self = this,
+                        topLoadMore, topWindow;
+
+                    if (self.isActive || t.loadMore.hasClass('cbp-l-loadMore-stop')) {
+                        return;
                     }
+
+                    // add a treshold
+                    topLoadMore = t.loadMore.offset().top - 200;
+                    topWindow = $window.scrollTop() + $window.height();
+
+                    if (topLoadMore > topWindow) {
+                        return;
+                    }
+
+                    // this job is now busy
+                    self.isActive = true;
+
+                    // increment number of clicks
+                    self.numberOfClicks++;
+
+                    // perform ajax request
+                    $.ajax({
+                            url: t.createURL(t.loadMore.attr('href'), self.numberOfClicks),
+                            type: 'GET',
+                            dataType: 'HTML',
+                        })
+                        .done(function(result) {
+                            var items = result.replace(/(\r\n|\n|\r)/gm, '');
+
+                            var startBlock = items.indexOf('cbp-loadMore-block' + self.numberOfClicks);
+
+                            // stop the loadMore because the block doesn't exist
+                            if (startBlock === -1) {
+                                t.loadMore.addClass('cbp-l-loadMore-stop');
+                                return;
+                            }
+
+                            // set start from where I will substring
+                            var start = items.indexOf('>', startBlock) + 1;
+
+                            var endBlock = items.indexOf('cbp-loadMore-block' + (self.numberOfClicks + 1));
+                            var end;
+
+                            // if endBlock doesn't exist
+                            if (endBlock === -1) {
+                                end = items.lastIndexOf('</');
+                            } else {
+                                end = items.lastIndexOf('</', endBlock);
+                            }
+
+                            t.parent.$obj.cubeportfolio('append', items.substring(start, end), function() {
+                                if (endBlock === -1) {
+                                    t.loadMore.addClass('cbp-l-loadMore-stop');
+
+                                    // remove events
+                                    CubePortfolio.private.loadMoreScroll.destroyEvent(this);
+                                    t.parent.$obj.off('filterComplete.cbp');
+                                } else {
+                                    // make the job inactive
+                                    self.isActive = false;
+
+                                    $window.trigger('scroll.loadMore');
+                                }
+                            });
+                        })
+                        .fail(function() {
+                            // make the job inactive
+                            self.isActive = false;
+                        });
                 }
-            });
-
-            // when the filter is completed
-            t.parent.$obj.on('filterComplete.cbp', function() {
-                getNewItems();
-            });
-
-            // trigger method
-            getNewItems();
+            }).init();
         });
 
-        function getNewItems() {
-            if (isActive || t.loadMore.hasClass('cbp-l-loadMore-stop')) {
-                return;
-            }
-
-            // add a treshold
-            var topLoadMore = t.loadMore.offset().top - 200;
-            var topWindow = $window.scrollTop() + $window.height();
-
-            if (topLoadMore > topWindow) {
-                return;
-            }
-
-            // this job is now busy
-            isActive = true;
-
-            t.populateItems().then(function() {
-                t.populateInsertItems(appendCallback);
-            }).fail(function() {
-                // make the job inactive
-                isActive = false;
-            });
-        }
-
-        function appendCallback() {
-            var itemsInLoadMore;
-            var filter = t.parent.defaultFilter;
-
-            if (!filter || (filter === '*')) {
-                itemsInLoadMore = t.items.length;
-            } else {
-                itemsInLoadMore = t.items.filter(filter).length;
-            }
-
-            // check if we have more loadMore
-            if (itemsInLoadMore === 0) {
-                t.loadMore.removeClass('cbp-l-loadMore-loading').addClass('cbp-l-loadMore-stop');
-            } else {
-                t.loadItems.html(itemsInLoadMore);
-
-                $window.trigger('scroll.loadMore');
-            }
-
-            // make the job inactive
-            isActive = false;
-
-            // remove events
-            if (t.items.length === 0) {
-                CubePortfolio.private.loadMoreScroll.destroyEvent(t);
-                t.parent.$obj.off('filterComplete.cbp');
-            }
-        }
     };
 
-    Plugin.prototype.destroy = function() {
-        this.loadMore.off('.cbp');
 
-        if (CubePortfolio.private.loadMoreScroll) {
-            CubePortfolio.private.loadMoreScroll.destroyEvent(this);
-        }
+    Plugin.prototype.destroy = function() {
+        var t = this;
+
+        t.loadMore.off('.cbp');
+
+        CubePortfolio.private.loadMoreScroll.destroyEvent(this);
     };
 
     CubePortfolio.plugins.loadMore = function(parent) {
-        var plugins = parent.options.plugins;
-
-        // backward compatibility
-        if (parent.options.loadMore) {
-            if (!plugins.loadMore) {
-                plugins.loadMore = {};
-            }
-
-            plugins.loadMore.selector = parent.options.loadMore;
-        }
-
-        // backward compatibility
-        if (parent.options.loadMoreAction) {
-            if (!plugins.loadMore) {
-                plugins.loadMore = {};
-            }
-
-            plugins.loadMore.action = parent.options.loadMoreAction;
-        }
-
-        if (!plugins.loadMore || !plugins.loadMore.selector) {
+        if (parent.options.loadMore === '') {
             return null;
         }
 
@@ -3985,10 +3912,6 @@ if (typeof Object.create !== 'function') {
     'use strict';
 
     var CubePortfolio = $.fn.cubeportfolio.constructor;
-
-    var options = {
-        delay: 0,
-    };
 
     var popup = {
         /**
@@ -4015,8 +3938,6 @@ if (typeof Object.create !== 'function') {
                 t.cubeportfolio.registerEvent('resizeWindow', function() {
                     t.resizeImage();
                 });
-
-                t.localOptions = $.extend({}, options, t.cubeportfolio.options.plugins.lightbox);
             }
 
             if (type === 'singlePageInline') {
@@ -4064,8 +3985,6 @@ if (typeof Object.create !== 'function') {
                     }
                 }
 
-                t.localOptions = $.extend({}, options, t.cubeportfolio.options.plugins.singlePageInline);
-
                 return;
             }
 
@@ -4076,7 +3995,7 @@ if (typeof Object.create !== 'function') {
                 t.cubeportfolio.registerEvent('resizeWindow', function() {
                     if (t.options.singlePageStickyNavigation) {
 
-                        var width = t.contentWrap[0].clientWidth;
+                        var width = t.wrap[0].clientWidth;
 
                         if (width > 0) {
                             t.navigationWrap.width(width);
@@ -4143,8 +4062,6 @@ if (typeof Object.create !== 'function') {
                         t.openSinglePage([fakeLink], fakeLink);
                     }
                 }
-
-                t.localOptions = $.extend({}, options, t.cubeportfolio.options.plugins.singlePage);
             }
         },
 
@@ -4178,25 +4095,10 @@ if (typeof Object.create !== 'function') {
                 }
             });
 
-            if (t.type === 'singlePage') {
-                t.contentWrap = $('<div/>', {
-                    'class': 'cbp-popup-content-wrap'
-                }).appendTo(t.wrap);
-
-                if (CubePortfolio.private.browser === 'ios') {
-                    t.contentWrap.css('overflow', 'auto');
-                }
-
-                // content element
-                t.content = $('<div/>', {
-                    'class': 'cbp-popup-content'
-                }).appendTo(t.contentWrap);
-            } else {
-                // content element
-                t.content = $('<div/>', {
-                    'class': 'cbp-popup-content'
-                }).appendTo(t.wrap);
-            }
+            // content element
+            t.content = $('<div/>', {
+                'class': 'cbp-popup-content'
+            }).appendTo(t.wrap);
 
             // append loading div
             $('<div/>', {
@@ -4211,24 +4113,10 @@ if (typeof Object.create !== 'function') {
                 }).appendTo(t.wrap);
             }
 
-            if (t.type === 'singlePage') {
-                if (t.options.singlePageStickyNavigation === false) {
-                    // create navigation wrap
-                    t.navigationWrap = $('<div/>', {
-                        'class': 'cbp-popup-navigation-wrap'
-                    }).appendTo(t.contentWrap);
-                } else {
-                    // create navigation wrap
-                    t.navigationWrap = $('<div/>', {
-                        'class': 'cbp-popup-navigation-wrap'
-                    }).appendTo(t.wrap);
-                }
-            } else {
-                // create navigation wrap
-                t.navigationWrap = $('<div/>', {
-                    'class': 'cbp-popup-navigation-wrap'
-                }).appendTo(t.wrap);
-            }
+            // create navigation wrap
+            t.navigationWrap = $('<div/>', {
+                'class': 'cbp-popup-navigation-wrap'
+            }).appendTo(t.wrap);
 
             // create navigation block
             t.navigation = $('<div/>', {
@@ -4270,40 +4158,19 @@ if (typeof Object.create !== 'function') {
 
                     var i,
                         len = t.dataArray.length,
-                        href = this.getAttribute('href'),
-                        indexFound;
+                        href = this.getAttribute('href');
 
                     for (i = 0; i < len; i++) {
                         if (t.dataArray[i].url === href) {
-                            indexFound = i;
                             break;
                         }
                     }
 
-                    if (indexFound === undefined) {
-                        var fakeLink = document.createElement('a');
-                        fakeLink.setAttribute('href', href);
-
-                        t.dataArray = [{
-                            url: href,
-                            element: fakeLink
-                        }];
-
-                        // total numbers of elements
-                        t.counterTotal = 1;
-
-                        t.nextButton.hide();
-                        t.prevButton.hide();
-
-                        t.singlePageJumpTo(0);
-                    } else {
-                        t.singlePageJumpTo(indexFound - t.current);
-                    }
-
+                    t.singlePageJumpTo(i - t.current);
                 });
 
                 // if there are some events than overrides the default scroll behaviour don't go to them
-                t.contentWrap.on('mousewheel.cbp' + ' DOMMouseScroll.cbp', function(e) {
+                t.wrap.on('mousewheel.cbp' + ' DOMMouseScroll.cbp', function(e) {
                     e.stopImmediatePropagation();
                 });
             }
@@ -4614,7 +4481,7 @@ if (typeof Object.create !== 'function') {
             t.scrollTop = $(window).scrollTop();
 
             // go to top of the page (reset scroll)
-            t.contentWrap.scrollTop(0);
+            t.wrap.scrollTop(0);
 
             // show the wrapper
             t.wrap.show();
@@ -4636,7 +4503,29 @@ if (typeof Object.create !== 'function') {
                 if (t.options.singlePageStickyNavigation) {
 
                     t.wrap.addClass('cbp-popup-singlePage-sticky');
-                    t.navigationWrap.width(t.contentWrap[0].clientWidth);
+
+                    t.navigationWrap.width(t.wrap[0].clientWidth);
+
+                    if (CubePortfolio.private.browser === 'android' || CubePortfolio.private.browser === 'ios') {
+                        // wrap element
+                        t.navigationMobile = $('<div/>', {
+                            'class': 'cbp-popup-singlePage cbp-popup-singlePage-sticky',
+                            'id': t.wrap.attr('id')
+                        }).on('click.cbp', function(e) {
+                            if (t.stopEvents) {
+                                return;
+                            }
+
+                            var action = $(e.target).attr('data-action');
+
+                            if (t[action]) {
+                                t[action]();
+                                e.preventDefault();
+                            }
+                        });
+
+                        t.navigationMobile.appendTo(document.body).append(t.navigationWrap);
+                    }
                 }
 
                 t.finishOpen--;
@@ -4656,7 +4545,7 @@ if (typeof Object.create !== 'function') {
 
                 // make the navigation sticky
                 if (t.options.singlePageStickyNavigation) {
-                    t.navigationWrap.width(t.contentWrap[0].clientWidth);
+                    t.navigationWrap.width(t.wrap[0].clientWidth);
 
                     setTimeout(function() {
                         t.wrap.addClass('cbp-popup-singlePage-sticky');
@@ -4683,24 +4572,6 @@ if (typeof Object.create !== 'function') {
             if ($.isFunction(t.options.singlePageCallback)) {
                 t.options.singlePageCallback.call(t, t.dataArray[t.current].url, t.dataArray[t.current].element);
             }
-
-            // ios bug to prevent
-            // http://stackoverflow.com/questions/9280258/prevent-body-scrolling-but-allow-overlay-scrolling
-            if (CubePortfolio.private.browser === 'ios') {
-                var element = t.contentWrap[0];
-
-                element.addEventListener('touchstart', function() {
-                    var top = element.scrollTop,
-                        totalScroll = element.scrollHeight,
-                        currentScroll = top + element.offsetHeight;
-
-                    if (top === 0) {
-                        element.scrollTop = 1;
-                    } else if (currentScroll === totalScroll) {
-                        element.scrollTop = top - 1;
-                    }
-                });
-            }
         },
 
         openSinglePageInline: function(blocks, currentBlock, fromOpen) {
@@ -4720,7 +4591,7 @@ if (typeof Object.create !== 'function') {
 
             // check singlePageInline and close it
             if (t.isOpen) {
-                tempCurrent = t.cubeportfolio.blocksOn.index($(currentBlock).closest('.cbp-item'));
+                tempCurrent = $(currentBlock).closest('.cbp-item').index();
 
                 if ((t.dataArray[t.current].url !== currentBlock.getAttribute('href')) || (t.current !== tempCurrent)) {
                     t.cubeportfolio.singlePageInline.close('open', {
@@ -5051,6 +4922,13 @@ if (typeof Object.create !== 'function') {
             // check for social share icons
             t.checkForSocialLinks(t.content);
 
+            // scroll bug on android and ios
+            if (CubePortfolio.private.browser === 'android' || CubePortfolio.private.browser === 'ios') {
+                $('html').css({
+                    position: 'fixed'
+                });
+            }
+
             // trigger public event
             t.cubeportfolio.$obj.trigger('updateSinglePageComplete.cbp');
         },
@@ -5087,7 +4965,7 @@ if (typeof Object.create !== 'function') {
                 var media = '';
                 var firstImg = this.content.find('img')[0];
 
-                if (firstImg) {
+                if(firstImg) {
                     media = firstImg.src;
                 }
 
@@ -5107,13 +4985,7 @@ if (typeof Object.create !== 'function') {
             // trigger public event
             t.cubeportfolio.$obj.trigger('updateSinglePageInlineStart.cbp');
 
-            if (t.localOptions.delay !== 0) {
-                setTimeout(function() {
-                    t.singlePageInlineIsOpen.call(t);
-                }, t.localOptions.delay)
-            } else {
-                t.singlePageInlineIsOpen.call(t);
-            }
+            t.singlePageInlineIsOpen.call(t);
         },
 
         singlePageInlineIsOpen: function() {
@@ -5348,7 +5220,7 @@ if (typeof Object.create !== 'function') {
                 t.resetWrap();
 
                 // go to top of the page (reset scroll)
-                t.contentWrap.scrollTop(0);
+                t.wrap.scrollTop(0);
 
                 t.wrap.addClass('cbp-popup-loading');
 
@@ -5461,30 +5333,57 @@ if (typeof Object.create !== 'function') {
             } else if (t.type === 'singlePage') {
                 t.resetWrap();
 
+                t.wrap.removeClass('cbp-popup-ready cbp-popup-transitionend');
+
+                // scroll bug on android and ios
+                if (CubePortfolio.private.browser === 'android' || CubePortfolio.private.browser === 'ios') {
+                    $('html').css({
+                        position: ''
+                    });
+
+                    t.navigationWrap.appendTo(t.wrap);
+                    t.navigationMobile.remove();
+                }
+
                 $(window).scrollTop(t.scrollTop);
 
-                t.stopScroll = true;
+                // weird bug on mozilla. fixed with setTimeout
+                setTimeout(function() {
+                    t.stopScroll = true;
 
-                t.wrap.removeClass('cbp-popup-ready cbp-popup-transitionend cbp-popup-singlePage-open cbp-popup-singlePage-sticky');
+                    t.navigationWrap.css({
+                        top: t.wrap.scrollTop()
+                    });
+
+                    t.wrap.removeClass('cbp-popup-singlePage-open cbp-popup-singlePage-sticky');
+
+                    if (CubePortfolio.private.browser === 'ie8' || CubePortfolio.private.browser === 'ie9') {
+                        // remove resize event
+                        if (t.slider) {
+                            CubePortfolio.private.resize.destroyEvent($.data(t.slider[0], 'cubeportfolio'));
+                        }
+
+                        // reset content
+                        t.content.html('');
+
+                        // hide the wrap
+                        t.wrap.detach();
+
+                        $('html').css({
+                            overflow: '',
+                            marginRight: '',
+                            position: ''
+                        });
+
+                        t.navigationWrap.removeAttr('style');
+                    }
+                }, 0);
 
                 $('html').css({
                     overflow: '',
                     marginRight: '',
                     position: ''
                 });
-
-                if (CubePortfolio.private.browser === 'ie8' || CubePortfolio.private.browser === 'ie9') {
-                    // remove resize event
-                    if (t.slider) {
-                        CubePortfolio.private.resize.destroyEvent($.data(t.slider[0], 'cubeportfolio'));
-                    }
-
-                    // reset content
-                    t.content.html('');
-
-                    // hide the wrap
-                    t.wrap.detach();
-                }
 
                 t.wrap.one(CubePortfolio.private.transitionend, function() {
                     // remove resize event
@@ -5497,6 +5396,9 @@ if (typeof Object.create !== 'function') {
 
                     // hide the wrap
                     t.wrap.detach();
+
+
+                    t.navigationWrap.removeAttr('style');
                 });
             } else {
                 lightboxIsOpen = false;
@@ -5708,7 +5610,7 @@ if (typeof Object.create !== 'function') {
                 var oldDate = $.data(this, 'cbp-locked'),
                     newDate = $.data(this, 'cbp-locked', +new Date());
 
-                if (!oldDate || ((newDate - oldDate) > 300)) {
+                if(!oldDate || ((newDate - oldDate) > 300)) {
                     p.singlePageInline.openSinglePageInline(p.blocksOn, this);
                 }
             });
