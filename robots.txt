@@ -1,4 +1,5 @@
 User-Agent: *
 Allow: www.loreleicretu.com
-Allow: 
+Allow: loreleicretu.com
+Allow:
 
